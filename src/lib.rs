@@ -20,6 +20,8 @@ use syn::{Data, DataEnum, DeriveInput, parse_macro_input};
 ///
 /// Returns `Some(variant)` if the input integer value matches the discriminant
 /// (when cast to the method's type) of a variant. Returns `None` otherwise.
+/// Note that casting the discriminant to a smaller type might result in
+/// wrapping or truncation, which affects the values being matched against.
 ///
 /// # Example
 ///
@@ -47,10 +49,9 @@ use syn::{Data, DataEnum, DeriveInput, parse_macro_input};
 /// let c_i64: Option<MyEnum> = MyEnum::from_i64(256);
 /// assert_eq!(c_i64, Some(MyEnum::VariantC));
 ///
-/// // from_u8(256) -> None (256 as u8 is 0, input 256 doesn't fit u8,
-/// // but let's say you passed 0u8. Then 0u8 == (256 as u8 which is 0))
-/// // Example passing a value that *does* fit u8 but matches the wrapped discriminant
-/// let wrapped_c_u8: Option<MyEnum> = MyEnum::from_u8(0); // 256 wraps to 0 for u8
+/// // from_u8(0) -> Some(VariantC) because 256 as u8 is 0.
+/// // The match is against the discriminant value *after* casting to u8.
+/// let wrapped_c_u8: Option<MyEnum> = MyEnum::from_u8(0);
 /// assert_eq!(wrapped_c_u8, Some(MyEnum::VariantC));
 ///
 /// // from_i16(257) -> Some(VariantD) (257 as i16 == 257 as i16)
@@ -80,7 +81,7 @@ pub fn rawenum(_attr: TokenStream, item: TokenStream) -> TokenStream {
         ("u16", quote! { u16 }),
         ("i32", quote! { i32 }),
         ("u32", quote! { u32 }),
-        ("i64", quote! { i64 }), // The type we previously cast to globally
+        ("i64", quote! { i64 }),
         ("u64", quote! { u64 }),
     ];
 
