@@ -7,7 +7,7 @@ description = "A procedural macro to generate from_* methods for enums based on 
 repository = "https://github.com/roeeshoshani/rawenum"
 license = "Apache-2.0"
 keywords = ["proc-macro", "enum", "raw", "integer", "conversion"]
-categories = ["development-tools::procedural-macro", "data-structures"]
+categories = ["development-tools", "data-structures"]
 
 [lib]
 proc-macro = true
