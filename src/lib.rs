@@ -1,14 +1,43 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{Data, DataEnum, DeriveInput, parse_macro_input};
+use syn::{
+    Data, DataEnum, DeriveInput, Token, Type,
+    parse::{Parse, ParseStream},
+    parse_macro_input,
+    spanned::Spanned,
+};
 
-/// A procedural macro to generate `from_*` methods for various integer types
+// Helper struct to parse the attribute arguments (the specified types)
+struct AllowedTypes {
+    types: Vec<Type>,
+}
+
+impl Parse for AllowedTypes {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let mut types = Vec::new();
+        // Parse a comma-separated list of types
+        while !input.is_empty() {
+            let ty: Type = input.parse()?;
+            types.push(ty);
+            // If there's more input, expect a comma
+            if !input.is_empty() {
+                input.parse::<Token![,]>()?;
+            }
+        }
+        Ok(AllowedTypes { types })
+    }
+}
+
+/// A procedural macro to generate `from_*` methods for specific integer types
 /// for enums with explicit or implicit integer discriminants.
 ///
-/// Apply this macro to an enum. It will generate `impl` blocks for the enum
-/// with `from_i8`, `from_u8`, `from_i16`, `from_u16`, `from_i32`, `from_u32`,
-/// `from_i64`, and `from_u64` functions. Each function takes a value of the
-/// corresponding integer type and returns an `Option<Self>`.
+/// Apply this macro to an enum, providing a comma-separated list of integer
+/// types for which `from_*` methods should be generated.
+///
+/// The macro will generate `impl` blocks for the enum with `from_<type>`
+/// functions for each specified type (e.g., `from_i32`, `from_u8`). Each
+/// function takes a value of the corresponding integer type and returns an
+/// `Option<Self>`.
 ///
 /// Inside each `from_<type>` method, the macro generates a `const` for each
 /// enum variant. This constant holds the variant's discriminant value cast to
@@ -28,7 +57,7 @@ use syn::{Data, DataEnum, DeriveInput, parse_macro_input};
 /// ```rust
 /// use rawenum::rawenum;
 ///
-/// #[rawenum]
+/// #[rawenum(i32, u8)] // Specify the desired integer types
 /// #[derive(Debug, PartialEq)] // Add derives if needed for testing/usage
 /// enum MyEnum {
 ///     VariantA = 1, // Explicit discriminant
@@ -37,34 +66,41 @@ use syn::{Data, DataEnum, DeriveInput, parse_macro_input};
 ///     VariantD,     // Implicit discriminant (will be 257)
 /// }
 ///
-/// // from_i8(1) -> Some(VariantA) (1 as i8 == 1 as i8)
-/// let a_i8: Option<MyEnum> = MyEnum::from_i8(1);
-/// assert_eq!(a_i8, Some(MyEnum::VariantA));
+/// // Only from_i32 and from_u8 methods are generated
+/// let a_i32: Option<MyEnum> = MyEnum::from_i32(1);
+/// assert_eq!(a_i32, Some(MyEnum::VariantA));
 ///
-/// // from_u32(2) -> Some(VariantB) (2 as u32 == 2 as u32)
-/// let b_u32: Option<MyEnum> = MyEnum::from_u32(2); // Testing implicit discriminant
-/// assert_eq!(b_u32, Some(MyEnum::VariantB));
+/// let b_u8: Option<MyEnum> = MyEnum::from_u8(2); // Testing implicit discriminant
+/// assert_eq!(b_u8, Some(MyEnum::VariantB));
 ///
-/// // from_i64(256) -> Some(VariantC) (256 as i64 == 256 as i64)
-/// let c_i64: Option<MyEnum> = MyEnum::from_i64(256);
-/// assert_eq!(c_i64, Some(MyEnum::VariantC));
+/// // Attempting to call a non-generated method like from_i64 would be a compile error
+/// // let c_i64: Option<MyEnum> = MyEnum::from_i64(256); // This line would cause a compile error
 ///
-/// // from_u8(0) -> Some(VariantC) because 256 as u8 is 0.
-/// // The match is against the discriminant value *after* casting to u8.
-/// let wrapped_c_u8: Option<MyEnum> = MyEnum::from_u8(0);
+/// // Test wrapping behavior for u8
+/// let wrapped_c_u8: Option<MyEnum> = MyEnum::from_u8(0); // 256 as u8 is 0
 /// assert_eq!(wrapped_c_u8, Some(MyEnum::VariantC));
 ///
-/// // from_i16(257) -> Some(VariantD) (257 as i16 == 257 as i16)
-/// let d_i16: Option<MyEnum> = MyEnum::from_i16(257); // Testing implicit discriminant after explicit
-/// assert_eq!(d_i16, Some(MyEnum::VariantD));
-///
-/// let e_i16: Option<MyEnum> = MyEnum::from_i16(99); // No variant with discriminant 99 (as i16)
-/// assert_eq!(e_i16, None);
+/// let e_i32: Option<MyEnum> = MyEnum::from_i32(99); // No variant with discriminant 99 (as i32)
+/// assert_eq!(e_i32, None);
 /// ```
 #[proc_macro_attribute]
-pub fn rawenum(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn rawenum(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
     let name = &input.ident; // The name of the enum
+
+    // Parse the specified integer types from the attribute arguments
+    let allowed_types = parse_macro_input!(attr as AllowedTypes);
+    let specified_types = allowed_types.types;
+
+    // Ensure at least one type was specified
+    if specified_types.is_empty() {
+        return syn::Error::new_spanned(
+            input,
+            "at least one integer type must be specified, e.g., #[rawenum(i32)]",
+        )
+        .to_compile_error()
+        .into();
+    }
 
     // Ensure the input is an enum, otherwise return a compile error.
     let Data::Enum(DataEnum { variants, .. }) = &input.data else {
@@ -73,25 +109,53 @@ pub fn rawenum(_attr: TokenStream, item: TokenStream) -> TokenStream {
             .into();
     };
 
-    // Define the integer types for which we want to generate `from_*` methods
-    let integer_types = vec![
-        ("i8", quote! { i8 }),
-        ("u8", quote! { u8 }),
-        ("i16", quote! { i16 }),
-        ("u16", quote! { u16 }),
-        ("i32", quote! { i32 }),
-        ("u32", quote! { u32 }),
-        ("i64", quote! { i64 }),
-        ("u64", quote! { u64 }),
-    ];
-
     // This vector will collect the code for all generated methods.
     let mut all_generated_methods = Vec::new();
 
-    // Generate `impl` block and all the `from_*` functions
-    for (type_str, type_tokens) in integer_types.iter() {
-        // Create the function name identifier, e.g., `from_i8`
-        let fn_name = format_ident!("from_{}", type_str);
+    // Supported integer types for validation
+    const SUPPORTED_TYPES: &[&str] = &["i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64"];
+
+    // Generate `impl` block and the `from_*` functions only for specified types
+    for specified_type in specified_types {
+        // Extract the identifier and span from the specified type
+        let (type_ident, type_span) = match &specified_type {
+            Type::Path(type_path) => {
+                if let Some(segment) = type_path.path.segments.last() {
+                    (segment.ident.clone(), segment.span())
+                } else {
+                    return syn::Error::new_spanned(specified_type, "invalid type specified")
+                        .to_compile_error()
+                        .into();
+                }
+            }
+            _ => {
+                return syn::Error::new_spanned(
+                    specified_type,
+                    "expected an integer type identifier (e.g., i32)",
+                )
+                .to_compile_error()
+                .into();
+            }
+        };
+
+        let type_str = type_ident.to_string();
+
+        // Validate that the specified type is one of the supported integer types
+        if !SUPPORTED_TYPES.contains(&type_str.as_str()) {
+            return syn::Error::new_spanned(
+                specified_type,
+                format!(
+                    "unsupported integer type '{}'. Supported types are {}.",
+                    type_str,
+                    SUPPORTED_TYPES.join(", ")
+                ),
+            )
+            .to_compile_error()
+            .into();
+        }
+
+        // Create the function name identifier with the correct span
+        let fn_name = format_ident!("from_{}", type_str, span = type_span);
 
         // Vectors to hold const declarations and match arms *for this specific method*
         let mut local_generated_consts = Vec::new();
@@ -101,21 +165,22 @@ pub fn rawenum(_attr: TokenStream, item: TokenStream) -> TokenStream {
         // casting to the current target integer type.
         for variant in variants {
             let variant_name = &variant.ident; // Name of the variant
+            let variant_span = variant_name.span(); // Span of the variant name
 
-            // Create a unique const name for each variant *and* type,
-            // e.g., `__RAWENUM_MYENUM_VARIANTA_DISCRIMINANT_I8`
+            // Create a unique const name for each variant *and* type, with the correct span
             let const_name = format_ident!(
                 "__RAWENUM_{}_DISCRIMINANT_{}_{}",
                 name.to_string().to_uppercase(),
                 variant_name.to_string().to_uppercase(),
-                type_str.to_uppercase()
+                type_str.to_uppercase(),
+                span = variant_span
             );
 
             // Generate the const declaration:
             // `const ENUM_VARIANT_DISCRIMINANT_TYPE: TargetType = EnumName::VariantName as TargetType;`
-            // This cast is crucial and happens here, local to the method.
+            // Use #specified_type directly to preserve its span.
             local_generated_consts.push(quote! {
-                const #const_name: #type_tokens = #name::#variant_name as #type_tokens;
+                const #const_name: #specified_type = #name::#variant_name as #specified_type;
             });
 
             // Generate the match arm using the generated const: `CONST_NAME_TYPE => Some(Self::VariantName),`
@@ -133,11 +198,11 @@ pub fn rawenum(_attr: TokenStream, item: TokenStream) -> TokenStream {
         // Generate the code for a single `from_*` function
         let method_code = quote! {
             #[allow(dead_code)] // Allow this function to be unused without a warning
-            /// Converts a raw #type_tokens integer value to an Option<Self>.
+            /// Converts a raw #specified_type integer value to an Option<Self>.
             ///
             /// Returns `Some(variant)` if the value matches the discriminant
-            /// (when cast to #type_tokens) of a variant. Returns `None` otherwise.
-            pub fn #fn_name(value: #type_tokens) -> Option<Self> {
+            /// (when cast to #specified_type) of a variant. Returns `None` otherwise.
+            pub fn #fn_name(value: #specified_type) -> Option<Self> {
                 // Include the locally generated consts here
                 #( #local_generated_consts )*
 
