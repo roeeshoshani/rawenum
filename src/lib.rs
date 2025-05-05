@@ -72,14 +72,13 @@ pub fn rawenum(_attr: TokenStream, item: TokenStream) -> TokenStream {
         let variant_name = &variant.ident; // Name of the variant
         // Create a unique const name for each variant, e.g., `MYENUM_VARIANTA_DISCRIMINANT`
         let const_name = format_ident!(
-            "{}_DISCRIMINANT_{}",
+            "__RAWENUM_{}_DISCRIMINANT_{}",
             name.to_string().to_uppercase(),
             variant_name.to_string().to_uppercase()
         );
 
         // Generate the const declaration: `const ENUM_VARIANT_DISCRIMINANT: i64 = EnumName::VariantName as i64;`
         generated_consts.push(quote! {
-            #[allow(non_upper_case_globals)] // Allow the generated const names
             const #const_name: i64 = #name::#variant_name as i64;
         });
 
@@ -133,11 +132,7 @@ pub fn rawenum(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let expanded = quote! {
         #input // Include the original enum definition
 
-        // Include the generated consts within an anonymous block to prevent name conflicts
-        // if the macro is applied multiple times in the same scope.
-        const _: () = {
-            #( #generated_consts )* // Expand all the generated consts
-        };
+        #( #generated_consts )* // Expand all the generated consts
 
         impl #name {
             #( #generated_methods )* // Expand all the generated from_* methods
