@@ -26,7 +26,7 @@ use syn::{Data, DataEnum, DeriveInput, parse_macro_input};
 /// # Example
 ///
 /// ```rust
-/// use rawenum_macro::rawenum;
+/// use rawenum::rawenum;
 ///
 /// #[rawenum]
 /// #[derive(Debug, PartialEq)] // Add derives if needed for testing/usage

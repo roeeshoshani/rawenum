@@ -1,5 +1,5 @@
 [package]
-name = "rawenum_macro"
+name = "rawenum"
 version = "0.1.0"
 edition = "2024"
 authors = ["Roee Shoshani"]
