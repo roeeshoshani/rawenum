@@ -2,6 +2,12 @@
 name = "rawenum_macro"
 version = "0.1.0"
 edition = "2024"
+authors = ["Roee Shoshani"]
+description = "A procedural macro to generate from_* methods for enums based on their integer discriminants."
+repository = "https://github.com/roeeshoshani/rawenum"
+license = "Apache-2.0"
+keywords = ["proc-macro", "enum", "raw", "integer", "conversion"]
+categories = ["development-tools::procedural-macro", "data-structures"]
 
 [lib]
 proc-macro = true
