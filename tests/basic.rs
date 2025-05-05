@@ -26,7 +26,7 @@ enum SpaceKind {
 fn test_from_i8() {
     assert_eq!(SpaceKind::from_i8(0), Some(SpaceKind::Constant));
     assert_eq!(SpaceKind::from_i8(6), Some(SpaceKind::Join));
-    assert_eq!(SpaceKind::from_i8(7), None); // Invalid
+    assert_eq!(SpaceKind::from_i8(7), Some(SpaceKind::Unknown));
     assert_eq!(SpaceKind::from_i8(-1), None); // Invalid
     assert_eq!(SpaceKind::from_i8(127), None); // Max i8, not a discriminant
     assert_eq!(SpaceKind::from_i8(-128), None); // Min i8, not a discriminant
@@ -36,7 +36,7 @@ fn test_from_i8() {
 fn test_from_u8() {
     assert_eq!(SpaceKind::from_u8(0), Some(SpaceKind::Constant));
     assert_eq!(SpaceKind::from_u8(6), Some(SpaceKind::Join));
-    assert_eq!(SpaceKind::from_u8(7), None); // Invalid
+    assert_eq!(SpaceKind::from_u8(7), Some(SpaceKind::Unknown));
     assert_eq!(SpaceKind::from_u8(255), None); // Max u8, not a discriminant
 }
 
@@ -45,7 +45,7 @@ fn test_from_i16() {
     assert_eq!(SpaceKind::from_i16(0), Some(SpaceKind::Constant));
     assert_eq!(SpaceKind::from_i16(6), Some(SpaceKind::Join));
     assert_eq!(SpaceKind::from_i16(256), Some(SpaceKind::LargeValue));
-    assert_eq!(SpaceKind::from_i16(7), None); // Invalid
+    assert_eq!(SpaceKind::from_i16(7), Some(SpaceKind::Unknown));
     assert_eq!(SpaceKind::from_i16(-1), None); // Invalid
 }
 
@@ -55,7 +55,7 @@ fn test_from_u16() {
     assert_eq!(SpaceKind::from_u16(6), Some(SpaceKind::Join));
     assert_eq!(SpaceKind::from_u16(256), Some(SpaceKind::LargeValue));
     assert_eq!(SpaceKind::from_u16(65535), Some(SpaceKind::AnotherLarge)); // Test value that fits u16
-    assert_eq!(SpaceKind::from_u16(7), None); // Invalid
+    assert_eq!(SpaceKind::from_u16(7), Some(SpaceKind::Unknown));
 }
 
 #[test]
@@ -65,7 +65,7 @@ fn test_from_i32() {
     assert_eq!(SpaceKind::from_i32(256), Some(SpaceKind::LargeValue));
     assert_eq!(SpaceKind::from_i32(65535), Some(SpaceKind::AnotherLarge));
     assert_eq!(SpaceKind::from_i32(100000), Some(SpaceKind::VeryLarge));
-    assert_eq!(SpaceKind::from_i32(7), None); // Invalid
+    assert_eq!(SpaceKind::from_i32(7), Some(SpaceKind::Unknown));
     assert_eq!(SpaceKind::from_i32(-1), None); // Invalid
 }
 
@@ -76,7 +76,7 @@ fn test_from_u32() {
     assert_eq!(SpaceKind::from_u32(256), Some(SpaceKind::LargeValue));
     assert_eq!(SpaceKind::from_u32(65535), Some(SpaceKind::AnotherLarge));
     assert_eq!(SpaceKind::from_u32(100000), Some(SpaceKind::VeryLarge));
-    assert_eq!(SpaceKind::from_u32(7), None); // Invalid
+    assert_eq!(SpaceKind::from_u32(7), Some(SpaceKind::Unknown));
 }
 
 #[test]
@@ -88,7 +88,7 @@ fn test_from_i64() {
     assert_eq!(SpaceKind::from_i64(100000), Some(SpaceKind::VeryLarge));
     assert_eq!(SpaceKind::from_i64(i64::MAX), Some(SpaceKind::MaxI64));
     assert_eq!(SpaceKind::from_i64(i64::MIN), Some(SpaceKind::MinI64));
-    assert_eq!(SpaceKind::from_i64(7), None); // Invalid
+    assert_eq!(SpaceKind::from_i64(7), Some(SpaceKind::Unknown));
 }
 
 #[test]
@@ -108,7 +108,7 @@ fn test_from_u64() {
     // but the literal discriminant in the match arm handles this.
     // Let's test a u64 value that doesn't match.
     assert_eq!(SpaceKind::from_u64(u64::MAX), None);
-    assert_eq!(SpaceKind::from_u64(7), None); // Invalid
+    assert_eq!(SpaceKind::from_u64(7), Some(SpaceKind::Unknown));
 }
 
 #[test]
